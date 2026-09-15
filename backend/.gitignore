@@ -1,0 +1,7 @@
+target/
+.idea/
+*.iml
+.vscode/
+*.log
+application-secrets.yml
+.env
