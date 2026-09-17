@@ -1,5 +1,6 @@
 package com.crazynoisyquiz.backend.user.service;
 
+import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.dto.CreateUserRequest;
 import com.crazynoisyquiz.backend.user.dto.UserResponse;
 import com.crazynoisyquiz.backend.user.model.User;
@@ -22,11 +23,11 @@ public class UserService {
     public UserResponse create(CreateUserRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new IllegalArgumentException("Email already registered");
+            throw new ResourceConflictException("E-mail já cadastrado");
         }
 
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new IllegalArgumentException("Username already registered");
+            throw new ResourceConflictException("Nome de usuário já cadastrado");
         }
 
         User user = User.builder()
