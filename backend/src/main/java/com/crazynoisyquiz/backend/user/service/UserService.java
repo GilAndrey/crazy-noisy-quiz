@@ -1,14 +1,15 @@
 package com.crazynoisyquiz.backend.user.service;
 
+import com.crazynoisyquiz.backend.auth.exception.InvalidCredentialsException;
 import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.dto.CreateUserRequest;
 import com.crazynoisyquiz.backend.user.dto.UserResponse;
 import com.crazynoisyquiz.backend.user.model.User;
 import com.crazynoisyquiz.backend.user.repository.UserRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -45,6 +46,20 @@ public class UserService {
                 savedUser.getEmail(),
                 savedUser.getAvatarUrl(),
                 savedUser.getCreatedAt()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(InvalidCredentialsException::new);
+
+        return new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getAvatarUrl(),
+                user.getCreatedAt()
         );
     }
 }

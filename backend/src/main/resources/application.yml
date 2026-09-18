@@ -18,3 +18,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+jwt:
+  secret: ${JWT_SECRET:uma-chave-local-com-pelo-menos-32-caracteres}
+  expiration: ${JWT_EXPIRATION:3600000}
