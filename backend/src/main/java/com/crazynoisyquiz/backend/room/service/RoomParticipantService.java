@@ -42,7 +42,7 @@ public class RoomParticipantService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
 
-        if (roomParticipantRepository.existsByRoomIdAndUserId(
+        if (roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(
                 room.getId(),
                 user.getId()
         )) {
@@ -71,6 +71,25 @@ public class RoomParticipantService {
         return toResponse(savedParticipant);
     }
 
+    @Transactional
+    public void leaveRoom(String roomCode, String userEmail) {
+        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+                .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
+
+        RoomParticipant participant = roomParticipantRepository
+                .findByRoomIdAndUserIdAndLeftAtIsNull(room.getId(), user.getId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Usuário não está participando desta sala"
+                ));
+
+        // Mantemos o registro e apenas marcamos quando o jogador saiu.
+        participant.setLeftAt(Instant.now());
+        roomParticipantRepository.save(participant);
+    }
+
     // Evita expor diretamente a entidade JPA na resposta da API.
     private RoomParticipantResponse toResponse(RoomParticipant participant) {
         return RoomParticipantResponse.builder()
@@ -81,6 +100,8 @@ public class RoomParticipantService {
                 .joinedAt(participant.getJoinedAt())
                 .build();
     }
+
+
 
 
 }

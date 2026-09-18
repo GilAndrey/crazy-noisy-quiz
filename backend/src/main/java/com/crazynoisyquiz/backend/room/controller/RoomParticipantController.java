@@ -6,10 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("api/rooms")
@@ -32,5 +29,16 @@ public class RoomParticipantController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @DeleteMapping("/{code}/leave")
+    public ResponseEntity<Void> leaveRoom(
+            @PathVariable String code,
+            Authentication authentication
+    ) {
+        roomParticipantService.leaveRoom(
+                code, authentication.getName()
+        );
+        return ResponseEntity.noContent().build();
     }
 }

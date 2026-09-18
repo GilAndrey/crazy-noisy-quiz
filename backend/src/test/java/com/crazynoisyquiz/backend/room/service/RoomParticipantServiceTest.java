@@ -49,7 +49,7 @@ class RoomParticipantServiceTest {
 
         when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(roomParticipantRepository.existsByRoomIdAndUserId(roomId, userId))
+        when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(false);
         when(roomParticipantRepository.countByRoomIdAndLeftAtIsNull(roomId))
                 .thenReturn(0L);
@@ -81,7 +81,7 @@ class RoomParticipantServiceTest {
 
         when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(roomParticipantRepository.existsByRoomIdAndUserId(roomId, userId))
+        when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> roomParticipantService.joinRoom(
@@ -103,7 +103,7 @@ class RoomParticipantServiceTest {
 
         when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
-        when(roomParticipantRepository.existsByRoomIdAndUserId(roomId, userId))
+        when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(false);
         when(roomParticipantRepository.countByRoomIdAndLeftAtIsNull(roomId))
                 .thenReturn(2L);
@@ -133,6 +133,55 @@ class RoomParticipantServiceTest {
                 .hasMessage("Não é possível entrar em uma sala que já foi iniciada");
 
         verify(userRepository, never()).findByEmail(any());
+    }
+
+    @Test
+    void shouldLeaveRoomAndSetLeftAt() {
+        // Montamos uma participação ativa, como ela estaria antes do jogador sair.
+        UUID roomId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
+        User user = createUser(userId, "gil@email.com");
+        RoomParticipant participant = new RoomParticipant();
+        participant.setRoom(room);
+        participant.setUser(user);
+        participant.setJoinedAt(java.time.Instant.now());
+
+        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(roomParticipantRepository.findByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
+                .thenReturn(Optional.of(participant));
+
+        // A saída não apaga o registro; apenas preenche o horário de saída.
+        roomParticipantService.leaveRoom("R3XCD5", user.getEmail());
+
+        assertThat(participant.getLeftAt()).isNotNull();
+        verify(roomParticipantRepository).save(participant);
+    }
+
+    @Test
+    void shouldRejectLeavingWhenUserIsNotInRoom() {
+        // Simulamos um usuário cadastrado que não possui participação ativa na sala.
+        UUID roomId = UUID.randomUUID();
+        QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
+        User user = createUser(UUID.randomUUID(), "gil@email.com");
+
+        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        when(roomParticipantRepository.findByRoomIdAndUserIdAndLeftAtIsNull(
+                roomId,
+                user.getId()
+        )).thenReturn(Optional.empty());
+
+        // Sem participação ativa, a saída deve ser recusada e nada deve ser salvo.
+        assertThatThrownBy(() -> roomParticipantService.leaveRoom(
+                "R3XCD5",
+                user.getEmail()
+        ))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Usuário não está participando desta sala");
+
+        verify(roomParticipantRepository, never()).save(any());
     }
 
     private QuizRoom createRoom(UUID id, RoomStatus status, int maxPlayers) {
