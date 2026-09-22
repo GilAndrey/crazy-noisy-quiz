@@ -6,6 +6,7 @@ import com.crazynoisyquiz.backend.room.model.RoomParticipant;
 import com.crazynoisyquiz.backend.room.model.RoomStatus;
 import com.crazynoisyquiz.backend.room.repository.QuizRoomRepository;
 import com.crazynoisyquiz.backend.room.repository.RoomParticipantRepository;
+import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.model.User;
 import com.crazynoisyquiz.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +37,7 @@ public class RoomParticipantService {
                 .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
 
         if (room.getStatus() != RoomStatus.WAITING) {
-            throw new IllegalStateException("Não é possível entrar em uma sala que já foi iniciada");
+            throw new ResourceConflictException("Não é possível entrar em uma sala que já foi iniciada");
         }
 
         // O e-mail vem do token JWT do usuário autenticado.
@@ -47,7 +49,7 @@ public class RoomParticipantService {
                 user.getId()
         )) {
             // Evita criar duas participações para o mesmo usuário.
-            throw new IllegalStateException(
+            throw new ResourceConflictException(
                     "Usuário já está participando dessa sala"
             );
         }
@@ -57,7 +59,7 @@ public class RoomParticipantService {
 
         if (participantsCount >= room.getMaxPlayers()) {
             // Apenas jogadores ativos ocupam vagas na sala.
-            throw new IllegalStateException("A sala está cheia");
+            throw new ResourceConflictException("A sala está cheia");
         }
 
         // Criamos a participação somente depois de todas as regras serem aprovadas.
@@ -102,6 +104,20 @@ public class RoomParticipantService {
     }
 
 
+    @Transactional(readOnly = true)
+    // vai retornar os jogadores ativos na sala! :)
+    public List<RoomParticipantResponse> findActiveParticipants(
+            String roomCode
+    ) {
+        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+                .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
+
+        return roomParticipantRepository
+                .findAllByRoomIdAndLeftAtIsNull(room.getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
 
 
 }

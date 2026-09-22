@@ -3,8 +3,10 @@ package com.crazynoisyquiz.backend.room.service;
 import com.crazynoisyquiz.backend.room.dto.CreateRoomRequest;
 import com.crazynoisyquiz.backend.room.dto.RoomResponse;
 import com.crazynoisyquiz.backend.room.model.QuizRoom;
+import com.crazynoisyquiz.backend.room.model.RoomParticipant;
 import com.crazynoisyquiz.backend.room.model.RoomStatus;
 import com.crazynoisyquiz.backend.room.repository.QuizRoomRepository;
+import com.crazynoisyquiz.backend.room.repository.RoomParticipantRepository;
 import com.crazynoisyquiz.backend.user.model.User;
 import com.crazynoisyquiz.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -12,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -23,6 +26,7 @@ public class RoomService {
     private static final String ROOM_CODE_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     private final QuizRoomRepository quizRoomRepository;
+    private final RoomParticipantRepository roomParticipantRepository;
     private final UserRepository userRepository;
 
     @Transactional
@@ -38,7 +42,16 @@ public class RoomService {
                 .maxPlayers(resolveMaxPlayers(request))
                 .build();
 
-        return toResponse(quizRoomRepository.save(room));
+        QuizRoom savedRoom = quizRoomRepository.save(room);
+
+        // Quem cria a sala já ocupa uma vaga e aparece na lista de participantes.
+        RoomParticipant ownerParticipation = new RoomParticipant();
+        ownerParticipation.setRoom(savedRoom);
+        ownerParticipation.setUser(owner);
+        ownerParticipation.setJoinedAt(Instant.now());
+        roomParticipantRepository.save(ownerParticipation);
+
+        return toResponse(savedRoom);
 
     }
 

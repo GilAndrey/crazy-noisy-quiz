@@ -8,8 +8,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@RequestMapping("api/rooms")
+@RequestMapping("/api/rooms")
 @RequiredArgsConstructor
 public class RoomParticipantController {
 
@@ -40,5 +42,15 @@ public class RoomParticipantController {
                 code, authentication.getName()
         );
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{code}/participants")
+    public ResponseEntity<List<RoomParticipantResponse>> findActiveParticipants(
+            @PathVariable String code
+    ) {
+        List<RoomParticipantResponse> participants = roomParticipantService
+                .findActiveParticipants(code);
+
+        return ResponseEntity.ok(participants);
     }
 }

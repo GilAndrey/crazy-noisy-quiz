@@ -1,6 +1,7 @@
 package com.crazynoisyquiz.backend.shared.exception;
 
 import com.crazynoisyquiz.backend.auth.exception.InvalidCredentialsException;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -15,6 +16,19 @@ import java.util.Map;
 // O restController centraliza o tratamento de erros da API
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(
+            EntityNotFoundException exception
+    ) {
+        ApiErrorResponse response = ApiErrorResponse.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .message(exception.getMessage())
+                .timestamp(Instant.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
 
     // trata conflitos de recurso e retorna um erro 409 com os detalhes
     @ExceptionHandler(ResourceConflictException.class)

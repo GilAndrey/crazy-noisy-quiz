@@ -6,6 +6,7 @@ import com.crazynoisyquiz.backend.room.model.RoomParticipant;
 import com.crazynoisyquiz.backend.room.model.RoomStatus;
 import com.crazynoisyquiz.backend.room.repository.QuizRoomRepository;
 import com.crazynoisyquiz.backend.room.repository.RoomParticipantRepository;
+import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.model.User;
 import com.crazynoisyquiz.backend.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -15,6 +16,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,7 +91,7 @@ class RoomParticipantServiceTest {
                 "R3XCD5",
                 user.getEmail()
         ))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ResourceConflictException.class)
                 .hasMessage("Usuário já está participando dessa sala");
 
         verify(roomParticipantRepository, never()).save(any());
@@ -112,7 +115,7 @@ class RoomParticipantServiceTest {
                 "R3XCD5",
                 user.getEmail()
         ))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ResourceConflictException.class)
                 .hasMessage("A sala está cheia");
 
         verify(roomParticipantRepository, never()).save(any());
@@ -129,7 +132,7 @@ class RoomParticipantServiceTest {
                 "R3XCD5",
                 "gil@email.com"
         ))
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(ResourceConflictException.class)
                 .hasMessage("Não é possível entrar em uma sala que já foi iniciada");
 
         verify(userRepository, never()).findByEmail(any());
@@ -182,6 +185,57 @@ class RoomParticipantServiceTest {
                 .hasMessage("Usuário não está participando desta sala");
 
         verify(roomParticipantRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldReturnOnlyActiveParticipantsForRoom() {
+        UUID roomId = UUID.randomUUID();
+        UUID participantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
+        User user = createUser(userId, "gil@email.com");
+        RoomParticipant activeParticipant = new RoomParticipant();
+        activeParticipant.setId(participantId);
+        activeParticipant.setRoom(room);
+        activeParticipant.setUser(user);
+        activeParticipant.setJoinedAt(Instant.now());
+
+        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(roomParticipantRepository.findAllByRoomIdAndLeftAtIsNull(roomId))
+                .thenReturn(List.of(activeParticipant));
+
+        // O repository já filtra quem saiu; o service transforma os registros em DTOs.
+        List<RoomParticipantResponse> participants =
+                roomParticipantService.findActiveParticipants("R3XCD5");
+
+        assertThat(participants).hasSize(1);
+        assertThat(participants.get(0).getId()).isEqualTo(participantId);
+        assertThat(participants.get(0).getUserId()).isEqualTo(userId);
+        assertThat(participants.get(0).getRoomCode()).isEqualTo("R3XCD5");
+    }
+
+    @Test
+    void shouldReturnEmptyListWhenRoomHasNoActiveParticipants() {
+        UUID roomId = UUID.randomUUID();
+        QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
+
+        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(roomParticipantRepository.findAllByRoomIdAndLeftAtIsNull(roomId))
+                .thenReturn(List.of());
+
+        // Uma sala sem jogadores ativos é uma resposta válida, então retornamos lista vazia.
+        assertThat(roomParticipantService.findActiveParticipants("R3XCD5")).isEmpty();
+    }
+
+    @Test
+    void shouldFailToListParticipantsWhenRoomDoesNotExist() {
+        when(quizRoomRepository.findByCode("NOEXIST")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> roomParticipantService.findActiveParticipants("NOEXIST"))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Sala não encontrada");
+
+        verify(roomParticipantRepository, never()).findAllByRoomIdAndLeftAtIsNull(any());
     }
 
     private QuizRoom createRoom(UUID id, RoomStatus status, int maxPlayers) {

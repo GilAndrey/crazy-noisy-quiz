@@ -13,9 +13,6 @@ public interface RoomParticipantRepository extends JpaRepository<RoomParticipant
     // Evita duplicidade entre os participantes que ainda estão na sala.
     boolean existsByRoomIdAndUserIdAndLeftAtIsNull(UUID roomId, UUID userId);
 
-    // Retorna todos os jogadores vinculados à sala.
-    List<RoomParticipant> findAllByRoomId(UUID roomId);
-
     // Conta apenas quem ainda não saiu da sala.
     long countByRoomIdAndLeftAtIsNull(UUID roomId);
 
@@ -24,4 +21,8 @@ public interface RoomParticipantRepository extends JpaRepository<RoomParticipant
             UUID roomId,
             UUID userId
     );
+
+    // Retorna apenas os participantes ativos da sala.
+    List<RoomParticipant> findAllByRoomIdAndLeftAtIsNull(UUID roomId);
+
 }
