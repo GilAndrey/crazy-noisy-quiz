@@ -1,6 +1,7 @@
 package com.crazynoisyquiz.backend.room.service;
 
 import com.crazynoisyquiz.backend.room.dto.CreateRoomRequest;
+import com.crazynoisyquiz.backend.room.dto.RoomParticipantResponse;
 import com.crazynoisyquiz.backend.room.dto.RoomResponse;
 import com.crazynoisyquiz.backend.room.model.QuizRoom;
 import com.crazynoisyquiz.backend.room.model.RoomParticipant;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -86,7 +88,21 @@ public class RoomService {
     }
 
     private RoomResponse toResponse(QuizRoom room) {
-        // Retornamos apenas os dados necessários para o cliente conhecer a sala.
+        // Buscamos os jogadores que ainda estão ativos e montamos os DTOs da resposta.
+        List<RoomParticipantResponse> participants = roomParticipantRepository
+                .findAllByRoomIdAndLeftAtIsNull(room.getId())
+                .stream()
+                .map(participant -> RoomParticipantResponse.builder()
+                        .id(participant.getId())
+                        .roomId(participant.getRoom().getId())
+                        .userId(participant.getUser().getId())
+                        .roomCode(participant.getRoom().getCode())
+                        .joinedAt(participant.getJoinedAt())
+                        .username(participant.getUser().getUsername())
+                        .avatarKey(participant.getUser().getAvatarKey())
+                        .build())
+                .toList();
+
         return RoomResponse.builder()
                 .id(room.getId())
                 .code(room.getCode())
@@ -94,7 +110,17 @@ public class RoomService {
                 .status(room.getStatus())
                 .maxPlayers(room.getMaxPlayers())
                 .createdAt(room.getCreatedAt())
+                .participants(participants)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public RoomResponse findByCode(String roomCode) {
+        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+                .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
+
+
+        return toResponse(room);
     }
 
 }

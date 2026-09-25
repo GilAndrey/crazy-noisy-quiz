@@ -25,4 +25,5 @@ public interface RoomParticipantRepository extends JpaRepository<RoomParticipant
     // Retorna apenas os participantes ativos da sala.
     List<RoomParticipant> findAllByRoomIdAndLeftAtIsNull(UUID roomId);
 
+//    List<RoomParticipant> findAllByRoomIdAndLeftAtIsNull()
 }

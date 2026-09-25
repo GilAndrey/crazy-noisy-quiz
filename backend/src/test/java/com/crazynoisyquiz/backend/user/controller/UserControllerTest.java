@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -51,7 +52,7 @@ class UserControllerTest {
                     "username": "gil",
                     "email": "gil@email.com",
                     "password": "senha123",
-                    "avatarUrl": null
+                    "avatarKey": null
                 }
                 """;
 
@@ -86,5 +87,26 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errors.username").exists())
                 .andExpect(jsonPath("$.errors.email").exists())
                 .andExpect(jsonPath("$.errors.password").exists());
+    }
+
+    @Test
+    void shouldReturn400WhenAvatarKeyIsUnknown() throws Exception {
+        String requestBody = """
+                {
+                    "username": "gil",
+                    "email": "gil@email.com",
+                    "password": "senha123",
+                    "avatarKey": "AVATAR_99"
+                }
+                """;
+
+        // O JSON não pode ser convertido para AvatarKey quando recebe uma opção inexistente.
+        mockMvc.perform(post("/api/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest());
+
+        // A requisição inválida deve ser barrada antes de chegar ao service.
+        verifyNoInteractions(userService);
     }
 }

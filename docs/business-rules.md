@@ -56,6 +56,13 @@ WAITING -> IN_PROGRESS -> FINISHED
 - Perguntas inativas não podem ser sorteadas.
 - Usuários comuns não cadastram perguntas no MVP.
 
+## Perfil e avatares
+
+- O usuário escolhe um avatar entre as opções predefinidas pelo projeto.
+- As imagens dos avatares ficam incluídas nos assets do aplicativo; o usuário não envia arquivos.
+- A API recebe e armazena somente a chave do avatar escolhido (`AVATAR_01` a `AVATAR_08`).
+- O avatar pode ficar sem seleção.
+
 ## Respostas
 
 - Cada jogador pode responder uma vez por pergunta.
@@ -106,4 +113,3 @@ Os seguintes recursos poderão ser adicionados posteriormente:
 - Conquistas.
 - Painel administrativo para perguntas.
 - Criação e moderação de perguntas por usuários.
-

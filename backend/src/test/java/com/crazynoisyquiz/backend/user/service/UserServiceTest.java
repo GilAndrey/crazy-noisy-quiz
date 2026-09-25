@@ -3,6 +3,7 @@ package com.crazynoisyquiz.backend.user.service;
 import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.dto.CreateUserRequest;
 import com.crazynoisyquiz.backend.user.dto.UserResponse;
+import com.crazynoisyquiz.backend.user.model.AvatarKey;
 import com.crazynoisyquiz.backend.user.model.User;
 import com.crazynoisyquiz.backend.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.argThat;
 
 @ExtendWith(MockitoExtension.class)
 public class UserServiceTest {
@@ -71,6 +73,62 @@ public class UserServiceTest {
         verify(passwordEncoder).encode("senha123");
         verify(userRepository).save(any(User.class));
 
+    }
+
+    @Test
+    void shouldCreateUserWithSelectedAvatar() {
+        CreateUserRequest request = new CreateUserRequest();
+        request.setUsername("gil");
+        request.setEmail("gil@email.com");
+        request.setPassword("senha123");
+        request.setAvatarKey(AvatarKey.AVATAR_01);
+
+        User savedUser = User.builder()
+                .id(UUID.randomUUID())
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .passwordHash("hash-da-senha")
+                .avatarKey(AvatarKey.AVATAR_01)
+                .build();
+
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(userRepository.existsByUsername(request.getUsername())).thenReturn(false);
+        when(passwordEncoder.encode(request.getPassword())).thenReturn("hash-da-senha");
+        when(userRepository.save(argThat(user -> user.getAvatarKey() == AvatarKey.AVATAR_01)))
+                .thenReturn(savedUser);
+
+        UserResponse response = userService.create(request);
+
+        // Confirma que o avatar escolhido foi persistido e também voltou na resposta.
+        assertThat(response.getAvatarKey()).isEqualTo(AvatarKey.AVATAR_01);
+        verify(userRepository).save(argThat(user -> user.getAvatarKey() == AvatarKey.AVATAR_01));
+    }
+
+    @Test
+    void shouldCreateUserWithoutAvatarWhenNoneWasSelected() {
+        CreateUserRequest request = new CreateUserRequest();
+        request.setUsername("gil");
+        request.setEmail("gil@email.com");
+        request.setPassword("senha123");
+
+        User savedUser = User.builder()
+                .id(UUID.randomUUID())
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .passwordHash("hash-da-senha")
+                .avatarKey(null)
+                .build();
+
+        when(userRepository.existsByEmail(request.getEmail())).thenReturn(false);
+        when(userRepository.existsByUsername(request.getUsername())).thenReturn(false);
+        when(passwordEncoder.encode(request.getPassword())).thenReturn("hash-da-senha");
+        when(userRepository.save(argThat(user -> user.getAvatarKey() == null))).thenReturn(savedUser);
+
+        UserResponse response = userService.create(request);
+
+        // Avatar é opcional: sem escolha, o perfil continua sendo criado normalmente.
+        assertThat(response.getAvatarKey()).isNull();
+        verify(userRepository).save(argThat(user -> user.getAvatarKey() == null));
     }
 
     @Test

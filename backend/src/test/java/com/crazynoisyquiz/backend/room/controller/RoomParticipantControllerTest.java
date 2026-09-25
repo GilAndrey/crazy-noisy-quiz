@@ -3,6 +3,7 @@ package com.crazynoisyquiz.backend.room.controller;
 import com.crazynoisyquiz.backend.auth.service.JwtService;
 import com.crazynoisyquiz.backend.room.dto.RoomParticipantResponse;
 import com.crazynoisyquiz.backend.room.service.RoomParticipantService;
+import com.crazynoisyquiz.backend.user.model.AvatarKey;
 import com.crazynoisyquiz.backend.shared.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,8 @@ class RoomParticipantControllerTest {
                 .userId(UUID.randomUUID())
                 .roomCode("R3XCD5")
                 .joinedAt(Instant.now())
+                .username("gil")
+                .avatarKey(AvatarKey.AVATAR_01)
                 .build();
 
         when(roomParticipantService.joinRoom(any(), any())).thenReturn(response);
@@ -89,6 +92,8 @@ class RoomParticipantControllerTest {
                 .userId(UUID.randomUUID())
                 .roomCode("R3XCD5")
                 .joinedAt(Instant.now())
+                .username("gil")
+                .avatarKey(AvatarKey.AVATAR_01)
                 .build();
 
         when(roomParticipantService.findActiveParticipants("R3XCD5"))
@@ -98,6 +103,8 @@ class RoomParticipantControllerTest {
         mockMvc.perform(get("/api/rooms/R3XCD5/participants"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(participant.getId().toString()))
-                .andExpect(jsonPath("$[0].roomCode").value("R3XCD5"));
+                .andExpect(jsonPath("$[0].roomCode").value("R3XCD5"))
+                .andExpect(jsonPath("$[0].username").value("gil"))
+                .andExpect(jsonPath("$[0].avatarKey").value("AVATAR_01"));
     }
 }

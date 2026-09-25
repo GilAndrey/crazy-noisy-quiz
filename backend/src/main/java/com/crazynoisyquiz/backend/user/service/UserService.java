@@ -35,7 +35,7 @@ public class UserService {
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .avatarUrl(request.getAvatarUrl())
+                .avatarKey(request.getAvatarKey())
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -44,7 +44,7 @@ public class UserService {
                 savedUser.getId(),
                 savedUser.getUsername(),
                 savedUser.getEmail(),
-                savedUser.getAvatarUrl(),
+                savedUser.getAvatarKey(),
                 savedUser.getCreatedAt()
         );
     }
@@ -58,7 +58,7 @@ public class UserService {
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getAvatarUrl(),
+                user.getAvatarKey(),
                 user.getCreatedAt()
         );
     }

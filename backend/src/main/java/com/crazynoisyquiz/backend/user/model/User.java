@@ -35,8 +35,9 @@ public class User {
     @Column(nullable = false, length = 255)
     private String passwordHash;
 
-    @Column(length = 500)
-    private String avatarUrl;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "avatar_key", length = 20)
+    private AvatarKey avatarKey;
 
     @NotNull
     @Column(nullable = false, updatable = false)

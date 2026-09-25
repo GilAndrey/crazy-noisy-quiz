@@ -1,5 +1,6 @@
 package com.crazynoisyquiz.backend.user.dto;
 
+import com.crazynoisyquiz.backend.user.model.AvatarKey;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -26,7 +27,6 @@ public class CreateUserRequest {
     @Size(min = 6, max = 100)
     private String password;
 
-    @Size(max = 500)
-    private String avatarUrl;
+    private AvatarKey avatarKey;
 
 }

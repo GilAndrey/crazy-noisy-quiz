@@ -100,6 +100,8 @@ public class RoomParticipantService {
                 .userId(participant.getUser().getId())
                 .roomCode(participant.getRoom().getCode())
                 .joinedAt(participant.getJoinedAt())
+                .username(participant.getUser().getUsername())
+                .avatarKey(participant.getUser().getAvatarKey())
                 .build();
     }
 

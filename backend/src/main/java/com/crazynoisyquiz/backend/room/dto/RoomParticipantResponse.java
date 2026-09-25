@@ -1,5 +1,6 @@
 package com.crazynoisyquiz.backend.room.dto;
 
+import com.crazynoisyquiz.backend.user.model.AvatarKey;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -15,4 +16,7 @@ public class RoomParticipantResponse {
     private UUID userId;
     private String roomCode;
     private Instant joinedAt;
+
+    private String username;
+    private AvatarKey avatarKey;
 }

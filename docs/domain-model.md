@@ -96,7 +96,7 @@ Table users {
   username varchar(30) [not null, unique]
   email varchar(255) [not null, unique]
   password_hash varchar(255) [not null]
-  avatar_url varchar(500)
+  avatar_key varchar(20)
   created_at timestamp [not null]
   updated_at timestamp [not null]
 }
@@ -263,4 +263,3 @@ A escolha de categorias pertence à partida, não à sala. Cada nova partida pod
 - Um jogador só pode responder uma vez por rodada.
 - Uma resposta deve pertencer a uma alternativa da pergunta da rodada.
 - Uma sala só pode iniciar uma partida se possuir pelo menos dois participantes.
-

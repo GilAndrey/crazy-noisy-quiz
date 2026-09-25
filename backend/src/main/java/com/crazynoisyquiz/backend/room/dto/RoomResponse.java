@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -17,5 +18,7 @@ public class RoomResponse {
     private RoomStatus status;
     private Integer maxPlayers;
     private Instant createdAt;
+
+    private List<RoomParticipantResponse> participants;
 
 }

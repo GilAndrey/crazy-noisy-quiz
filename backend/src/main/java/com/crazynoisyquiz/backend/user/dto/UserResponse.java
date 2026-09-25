@@ -1,5 +1,6 @@
 package com.crazynoisyquiz.backend.user.dto;
 
+import com.crazynoisyquiz.backend.user.model.AvatarKey;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,7 +16,7 @@ public class UserResponse {
     private UUID id;
     private String username;
     private String email;
-    private String avatarUrl;
+    private AvatarKey avatarKey;
     private Instant createdAt;
 
 }
