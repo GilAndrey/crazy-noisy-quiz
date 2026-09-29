@@ -1,0 +1,6 @@
+CREATE TABLE categories (
+    id UUID PRIMARY KEY,
+    name VARCHAR(80) NOT NULL UNIQUE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL
+);

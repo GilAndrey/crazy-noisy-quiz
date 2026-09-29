@@ -1,6 +1,7 @@
 package com.crazynoisyquiz.backend.user.controller;
 
 import com.crazynoisyquiz.backend.config.SecurityConfig;
+import com.crazynoisyquiz.backend.auth.service.JwtService;
 import com.crazynoisyquiz.backend.user.dto.UserResponse;
 import com.crazynoisyquiz.backend.user.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,10 @@ class UserControllerTest {
     // O controller será testado isoladamente; o service fica simulado.
     @MockitoBean
     private UserService userService;
+
+    // O filtro JWT faz parte da configuração de segurança, mas não é o foco deste teste.
+    @MockitoBean
+    private JwtService jwtService;
 
     @Test
     void shouldCreateUserAndReturn201() throws Exception {
