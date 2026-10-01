@@ -62,6 +62,46 @@ class QuestionRepositoryTest {
     }
 
     @Test
+    void shouldFindActiveQuestionsAcrossRequestedCategoriesWithoutInactiveOnes() {
+        Category firstCategory = saveCategory("Categoria para partida A");
+        Category secondCategory = saveCategory("Categoria para partida B");
+        Category anotherCategory = saveCategory("Categoria fora da seleção");
+
+        Question firstQuestion = saveQuestion(firstCategory, "Pergunta A", true);
+        Question secondQuestion = saveQuestion(secondCategory, "Pergunta B", true);
+        saveQuestion(secondCategory, "Pergunta inativa", false);
+        saveQuestion(anotherCategory, "Pergunta não selecionada", true);
+
+        // O sorteio recebe somente perguntas ativas das categorias escolhidas.
+        List<Question> result = questionRepository.findAllByCategoryIdInAndActiveTrue(
+                List.of(firstCategory.getId(), secondCategory.getId())
+        );
+
+        assertThat(result)
+                .extracting(Question::getId)
+                .containsExactlyInAnyOrder(firstQuestion.getId(), secondQuestion.getId());
+    }
+
+    @Test
+    void shouldFindOnlyActiveCategoriesFromRequestedIds() {
+        Category activeCategory = saveCategory("Categoria ativa selecionada");
+        Category inactiveCategory = saveCategory("Categoria inativa selecionada");
+        inactiveCategory.setActive(false);
+        categoryRepository.saveAndFlush(inactiveCategory);
+        Category unselectedCategory = saveCategory("Categoria não selecionada");
+
+        // Categorias inativas ou não pedidas não podem ser usadas para montar a partida.
+        List<Category> result = categoryRepository.findAllByIdInAndActiveTrue(
+                List.of(activeCategory.getId(), inactiveCategory.getId())
+        );
+
+        assertThat(result)
+                .extracting(Category::getId)
+                .containsExactly(activeCategory.getId());
+        assertThat(result).doesNotContain(unselectedCategory);
+    }
+
+    @Test
     void shouldReturnQuestionOptionsInTheirConfiguredOrder() {
         Category category = saveCategory("Categoria de teste opções");
         Question question = saveQuestion(category, "Pergunta com opções", true);

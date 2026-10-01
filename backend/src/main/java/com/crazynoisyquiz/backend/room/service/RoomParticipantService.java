@@ -33,7 +33,8 @@ public class RoomParticipantService {
             String userEmail
     ) {
         // A sala é localizada pelo código compartilhado entre os jogadores
-        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+        // Serializa entrada/saída com o início da partida para congelar a lista de jogadores.
+        QuizRoom room = quizRoomRepository.findByCodeForUpdate(roomCode)
                 .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
 
         if (room.getStatus() != RoomStatus.WAITING) {
@@ -75,7 +76,7 @@ public class RoomParticipantService {
 
     @Transactional
     public void leaveRoom(String roomCode, String userEmail) {
-        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+        QuizRoom room = quizRoomRepository.findByCodeForUpdate(roomCode)
                 .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
 
         User user = userRepository.findByEmail(userEmail)

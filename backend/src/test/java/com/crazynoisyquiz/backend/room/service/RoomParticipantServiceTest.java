@@ -50,7 +50,7 @@ class RoomParticipantServiceTest {
         QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
         User user = createUser(userId, "gil@email.com");
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(false);
@@ -82,7 +82,7 @@ class RoomParticipantServiceTest {
         QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
         User user = createUser(userId, "gil@email.com");
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(true);
@@ -104,7 +104,7 @@ class RoomParticipantServiceTest {
         QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 2);
         User user = createUser(userId, "gil@email.com");
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(roomParticipantRepository.existsByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(false);
@@ -126,7 +126,7 @@ class RoomParticipantServiceTest {
         UUID roomId = UUID.randomUUID();
         QuizRoom room = createRoom(roomId, RoomStatus.IN_PROGRESS, 8);
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
 
         assertThatThrownBy(() -> roomParticipantService.joinRoom(
                 "R3XCD5",
@@ -150,7 +150,7 @@ class RoomParticipantServiceTest {
         participant.setUser(user);
         participant.setJoinedAt(java.time.Instant.now());
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(roomParticipantRepository.findByRoomIdAndUserIdAndLeftAtIsNull(roomId, userId))
                 .thenReturn(Optional.of(participant));
@@ -169,7 +169,7 @@ class RoomParticipantServiceTest {
         QuizRoom room = createRoom(roomId, RoomStatus.WAITING, 8);
         User user = createUser(UUID.randomUUID(), "gil@email.com");
 
-        when(quizRoomRepository.findByCode("R3XCD5")).thenReturn(Optional.of(room));
+        when(quizRoomRepository.findByCodeForUpdate("R3XCD5")).thenReturn(Optional.of(room));
         when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         when(roomParticipantRepository.findByRoomIdAndUserIdAndLeftAtIsNull(
                 roomId,
