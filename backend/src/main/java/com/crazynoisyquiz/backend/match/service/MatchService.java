@@ -1,6 +1,8 @@
 package com.crazynoisyquiz.backend.match.service;
 
 import com.crazynoisyquiz.backend.match.dto.MatchResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchRoundResponse;
+import com.crazynoisyquiz.backend.match.dto.QuestionOptionResponse;
 import com.crazynoisyquiz.backend.match.dto.StartMatchRequest;
 import com.crazynoisyquiz.backend.match.model.Match;
 import com.crazynoisyquiz.backend.match.model.MatchParticipant;
@@ -14,6 +16,7 @@ import com.crazynoisyquiz.backend.question.model.Category;
 import com.crazynoisyquiz.backend.question.model.Question;
 import com.crazynoisyquiz.backend.question.repository.CategoryRepository;
 import com.crazynoisyquiz.backend.question.repository.QuestionRepository;
+import com.crazynoisyquiz.backend.question.repository.QuestionOptionRepository;
 import com.crazynoisyquiz.backend.room.model.QuizRoom;
 import com.crazynoisyquiz.backend.room.model.RoomParticipant;
 import com.crazynoisyquiz.backend.room.model.RoomStatus;
@@ -53,6 +56,7 @@ public class MatchService {
     private final RoomParticipantRepository roomParticipantRepository;
     private final CategoryRepository categoryRepository;
     private final QuestionRepository questionRepository;
+    private final QuestionOptionRepository questionOptionRepository;
 
     @Transactional
     public MatchResponse startMatch(
@@ -198,4 +202,102 @@ public class MatchService {
         }
         return selected;
     }
+
+    // Abre a próxima rodada e entrega a pergunta aos jogadores.
+    @Transactional
+    public MatchRoundResponse startNextRound(UUID matchId, String email) {
+        Match match = matchRepository.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new EntityNotFoundException("Partida não encontrada"));
+
+        if (!match.getRoom().getOwner().getEmail().equalsIgnoreCase(email)) {
+            throw new ForbiddenOperationException(
+                    "Apenas o criador da sala pode abrir a próxima rodada"
+            );
+        }
+
+        if (match.getStatus() != MatchStatus.IN_PROGRESS) {
+            throw new ResourceConflictException("A partida não está em andamento");
+        }
+
+        if (matchRoundRepository.existsByMatchIdAndStatus(matchId, RoundStatus.IN_PROGRESS)) {
+            throw new ResourceConflictException(
+                    "A rodada atual precisa terminar antes de abrir a próxima"
+            );
+        }
+
+        int nextRoundNumber = match.getCurrentRoundNumber() + 1;
+        if (nextRoundNumber > match.getTotalRounds()) {
+            throw new ResourceConflictException("Todas as rodadas da partida já foram abertas");
+        }
+
+        MatchRound round = matchRoundRepository
+                .findByMatchIdAndRoundNumber(matchId, nextRoundNumber)
+                .orElseThrow(() -> new EntityNotFoundException("Rodada não encontrada"));
+
+        if (round.getStatus() != RoundStatus.PENDING) {
+            throw new ResourceConflictException("Essa rodada já foi aberta");
+        }
+
+        round.setStatus(RoundStatus.IN_PROGRESS);
+        round.setStartedAt(Instant.now());
+        match.setCurrentRoundNumber(nextRoundNumber);
+        // A transação salva as alterações nas entidades que acabamos de buscar.
+
+        return toRoundResponse(round);
+    }
+
+    // Busca a pergunta atual apenas para quem participa dessa partida.
+    @Transactional(readOnly = true)
+    public MatchRoundResponse findCurrentRound(UUID matchId, String email) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new EntityNotFoundException("Partida não encontrada"));
+
+        if (!matchParticipantRepository.existsByMatchIdAndUserEmailIgnoreCase(matchId, email)) {
+            throw new ForbiddenOperationException("Apenas participantes podem consultar a rodada");
+        }
+
+        if (match.getStatus() != MatchStatus.IN_PROGRESS) {
+            throw new ResourceConflictException("A partida não está em andamento");
+        }
+
+        if (match.getCurrentRoundNumber() == 0) {
+            throw new ResourceConflictException("Nenhuma rodada foi aberta ainda");
+        }
+
+        MatchRound round = matchRoundRepository
+                .findByMatchIdAndRoundNumber(matchId, match.getCurrentRoundNumber())
+                .orElseThrow(() -> new EntityNotFoundException("Rodada não encontrada"));
+
+        if (round.getStatus() != RoundStatus.IN_PROGRESS) {
+            throw new ResourceConflictException("A rodada atual não está em andamento");
+        }
+
+        return toRoundResponse(round);
+    }
+
+    // Mantém a mesma resposta ao abrir e ao consultar uma rodada.
+    private MatchRoundResponse toRoundResponse(MatchRound round) {
+        Question question = round.getQuestion();
+        // O jogador recebe as alternativas em ordem, sem o campo que revela o gabarito.
+        List<QuestionOptionResponse> options = questionOptionRepository
+                .findAllByQuestionIdOrderByOptionOrderAsc(question.getId())
+                .stream()
+                .map(option -> new QuestionOptionResponse(
+                        option.getId(), option.getOptionText(), option.getOptionOrder()
+                ))
+                .toList();
+
+        return new MatchRoundResponse(
+                round.getId(),
+                round.getMatch().getId(),
+                round.getRoundNumber(),
+                round.getStatus(),
+                round.getStartedAt(),
+                question.getId(),
+                question.getStatement(),
+                question.getTimeLimitSeconds(),
+                options
+        );
+    }
+
 }

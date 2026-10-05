@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.UUID;
 
 public interface MatchParticipantRepository extends JpaRepository<MatchParticipant, UUID> {
+
+    boolean existsByMatchIdAndUserEmailIgnoreCase(UUID matchId, String email);
 }
