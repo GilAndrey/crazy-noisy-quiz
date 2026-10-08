@@ -7,6 +7,7 @@ import com.crazynoisyquiz.backend.match.model.RoundStatus;
 import com.crazynoisyquiz.backend.match.service.MatchService;
 import com.crazynoisyquiz.backend.shared.exception.ForbiddenOperationException;
 import com.crazynoisyquiz.backend.shared.exception.GlobalExceptionHandler;
+import com.crazynoisyquiz.backend.shared.exception.InvalidRequestException;
 import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,77 @@ class MatchRounderControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockitoBean private MatchService matchService;
     @MockitoBean private JwtService jwtService;
+
+    @Test
+    void shouldFinishRoundAndReturn200() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        UUID roundId = UUID.randomUUID();
+        UUID questionId = UUID.randomUUID();
+        Instant startedAt = Instant.parse("2026-10-08T12:00:00Z");
+        when(matchService.finishRound(matchId, roundId, "owner@email.com"))
+                .thenReturn(new MatchRoundResponse(roundId, matchId, 2,
+                        RoundStatus.FINISHED, startedAt, questionId,
+                        "Quanto é 2 + 2?", 10,
+                        List.of(new QuestionOptionResponse(UUID.randomUUID(), "4", 1))));
+
+        // O controller usa os IDs da URL e o criador autenticado, sem precisar de body.
+        mockMvc.perform(post("/api/matches/{matchId}/rounds/{roundId}/finish", matchId, roundId)
+                        .principal(new UsernamePasswordAuthenticationToken("owner@email.com", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(roundId.toString()))
+                .andExpect(jsonPath("$.matchId").value(matchId.toString()))
+                .andExpect(jsonPath("$.roundNumber").value(2))
+                .andExpect(jsonPath("$.status").value("FINISHED"))
+                .andExpect(jsonPath("$.startedAt").value(startedAt.toString()))
+                .andExpect(jsonPath("$.questionId").value(questionId.toString()))
+                .andExpect(jsonPath("$.options[0].optionText").value("4"));
+        verify(matchService).finishRound(matchId, roundId, "owner@email.com");
+    }
+
+    private void expectFinishFailure(String email, RuntimeException error, int expectedStatus)
+            throws Exception {
+        UUID matchId = UUID.randomUUID();
+        UUID roundId = UUID.randomUUID();
+        when(matchService.finishRound(matchId, roundId, email)).thenThrow(error);
+        mockMvc.perform(post("/api/matches/{matchId}/rounds/{roundId}/finish", matchId, roundId)
+                        .principal(new UsernamePasswordAuthenticationToken(email, null)))
+                .andExpect(status().is(expectedStatus))
+                .andExpect(jsonPath("$.status").value(expectedStatus))
+                .andExpect(jsonPath("$.message").value(error.getMessage()));
+        verify(matchService).finishRound(matchId, roundId, email);
+    }
+
+    @Test
+    void shouldReturn403WhenAnotherPlayerTriesToFinishRound() throws Exception {
+        // Participar da partida não dá permissão para encerrar a rodada.
+        expectFinishFailure("player@email.com", new ForbiddenOperationException(
+                "Apenas o criador da sala pode encerrar a rodada"), 403);
+    }
+
+    @Test
+    void shouldReturn409WhenPlayersStillHaveTimeToAnswer() throws Exception {
+        expectFinishFailure("owner@email.com", new ResourceConflictException(
+                "Aguarde todos responderem ou o tempo da rodada acabar"), 409);
+    }
+
+    @Test
+    void shouldReturn409WhenRoundWasAlreadyFinished() throws Exception {
+        // O service recusa a repetição para impedir que os pontos sejam somados novamente.
+        expectFinishFailure("owner@email.com", new ResourceConflictException(
+                "Essa rodada não está em andamento"), 409);
+    }
+
+    @Test
+    void shouldReturn404WhenFinishingMissingRound() throws Exception {
+        expectFinishFailure("owner@email.com", new EntityNotFoundException(
+                "Rodada não encontrada"), 404);
+    }
+
+    @Test
+    void shouldReturn400WhenFinishingRoundFromAnotherMatch() throws Exception {
+        expectFinishFailure("owner@email.com", new InvalidRequestException(
+                "A rodada não pertence a essa partida"), 400);
+    }
 
     @Test
     void shouldGetCurrentRoundWithoutRevealingAnswer() throws Exception {

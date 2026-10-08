@@ -5,11 +5,13 @@ import com.crazynoisyquiz.backend.match.dto.MatchRoundResponse;
 import com.crazynoisyquiz.backend.match.dto.QuestionOptionResponse;
 import com.crazynoisyquiz.backend.match.dto.StartMatchRequest;
 import com.crazynoisyquiz.backend.match.model.Match;
+import com.crazynoisyquiz.backend.match.model.MatchAnswer;
 import com.crazynoisyquiz.backend.match.model.MatchParticipant;
 import com.crazynoisyquiz.backend.match.model.MatchRound;
 import com.crazynoisyquiz.backend.match.model.MatchStatus;
 import com.crazynoisyquiz.backend.match.model.RoundStatus;
 import com.crazynoisyquiz.backend.match.repository.MatchParticipantRepository;
+import com.crazynoisyquiz.backend.match.repository.MatchAnswerRepository;
 import com.crazynoisyquiz.backend.match.repository.MatchRepository;
 import com.crazynoisyquiz.backend.match.repository.MatchRoundRepository;
 import com.crazynoisyquiz.backend.question.model.Category;
@@ -57,6 +59,8 @@ public class MatchService {
     private final CategoryRepository categoryRepository;
     private final QuestionRepository questionRepository;
     private final QuestionOptionRepository questionOptionRepository;
+    private final MatchAnswerRepository matchAnswerRepository;
+    private final AnswerScoreCalculator answerScoreCalculator;
 
     @Transactional
     public MatchResponse startMatch(
@@ -275,7 +279,65 @@ public class MatchService {
         return toRoundResponse(round);
     }
 
-    // Mantém a mesma resposta ao abrir e ao consultar uma rodada.
+    // Encerra a rodada e soma os pontos uma única vez.
+    @Transactional
+    public MatchRoundResponse finishRound(UUID matchId, UUID roundId, String email) {
+        Match match = matchRepository.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new EntityNotFoundException("Partida não encontrada"));
+
+        if (!match.getRoom().getOwner().getEmail().equalsIgnoreCase(email)) {
+            throw new ForbiddenOperationException("Apenas o criador da sala pode encerrar a rodada");
+        }
+        if (match.getStatus() != MatchStatus.IN_PROGRESS) {
+            throw new ResourceConflictException("A partida não está em andamento");
+        }
+
+        MatchRound round = matchRoundRepository.findById(roundId)
+                .orElseThrow(() -> new EntityNotFoundException("Rodada não encontrada"));
+        if (!round.getMatch().getId().equals(matchId)) {
+            throw new InvalidRequestException("A rodada não pertence a essa partida");
+        }
+        // Esse teste acontece antes da pontuação, inclusive em um segundo pedido.
+        if (round.getStatus() != RoundStatus.IN_PROGRESS
+                || !round.getRoundNumber().equals(match.getCurrentRoundNumber())) {
+            throw new ResourceConflictException("Essa rodada não está em andamento");
+        }
+        if (round.getStartedAt() == null) {
+            throw new ResourceConflictException("Essa rodada ainda não foi aberta");
+        }
+
+        Instant endedAt = Instant.now();
+        int timeLimit = round.getQuestion().getTimeLimitSeconds();
+        boolean timeExpired = !endedAt.isBefore(round.getStartedAt().plusSeconds(timeLimit));
+        long participantCount = matchParticipantRepository.countByMatchId(matchId);
+        long answerCount = matchAnswerRepository.countByRoundId(roundId);
+        if (!timeExpired && answerCount < participantCount) {
+            throw new ResourceConflictException("Aguarde todos responderem ou o tempo da rodada acabar");
+        }
+
+        List<MatchAnswer> answers = matchAnswerRepository.findAllByRoundId(roundId);
+        for (MatchAnswer answer : answers) {
+            int points = answerScoreCalculator.calculate(
+                    answer.getOption().isCorrect(),
+                    round.getStartedAt(),
+                    answer.getAnsweredAt(),
+                    timeLimit
+            );
+            MatchParticipant participant = answer.getParticipant();
+            participant.setTotalPoints(participant.getTotalPoints() + points);
+            // Toda resposta correta dentro do prazo recebe pontos nas faixas atuais.
+            if (points > 0) {
+                participant.setCorrectAnswers(participant.getCorrectAnswers() + 1);
+            }
+        }
+
+        round.setStatus(RoundStatus.FINISHED);
+        round.setEndedAt(endedAt);
+        // A transação salva a rodada e os totais dos participantes juntos.
+        return toRoundResponse(round);
+    }
+
+    // Mantém a mesma resposta ao abrir, consultar e encerrar uma rodada.
     private MatchRoundResponse toRoundResponse(MatchRound round) {
         Question question = round.getQuestion();
         // O jogador recebe as alternativas em ordem, sem o campo que revela o gabarito.

@@ -11,4 +11,7 @@ public interface MatchParticipantRepository extends JpaRepository<MatchParticipa
     boolean existsByMatchIdAndUserEmailIgnoreCase(UUID matchId, String email);
 
     Optional<MatchParticipant> findByMatchIdAndUserEmailIgnoreCase(UUID matchId, String email);
+
+    // Conta os jogadores que começaram essa partida.
+    long countByMatchId(UUID matchId);
 }

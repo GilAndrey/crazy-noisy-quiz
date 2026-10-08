@@ -30,6 +30,22 @@ public class MatchRounderController {
         return ResponseEntity.ok(response);
     }
 
+    // Encerra a rodada e atualiza os pontos dos jogadores.
+    @PostMapping("/{roundId}/finish")
+    public ResponseEntity<MatchRoundResponse> finishRound(
+            @PathVariable UUID matchId,
+            @PathVariable UUID roundId,
+            Authentication authentication
+    ) {
+        MatchRoundResponse response = matchService.finishRound(
+                matchId,
+                roundId,
+                authentication.getName()
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
     // Mostra a rodada atual para um participante da partida.
     @GetMapping("/current")
     public ResponseEntity<MatchRoundResponse> findCurrentRound(

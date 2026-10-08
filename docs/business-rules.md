@@ -16,33 +16,39 @@
 ## Estados da sala
 
 ```text
-OPEN -> IN_GAME -> OPEN
-  \____________> CLOSED
+WAITING -> IN_PROGRESS -> WAITING
+    \__________________> CLOSED
 ```
 
-- `OPEN`: a sala aceita jogadores e aguarda a próxima partida.
-- `IN_GAME`: existe uma partida em andamento.
+- `WAITING`: a sala aceita jogadores e aguarda a próxima partida.
+- `IN_PROGRESS`: existe uma partida em andamento.
 - `CLOSED`: a sala não pode mais ser utilizada.
 
 ## Partidas
 
 - Cada partida pertence a uma única sala.
 - Uma sala pode possuir várias partidas.
-- Cada partida possui 10 perguntas.
+- O criador da sala escolhe as categorias novamente antes de cada partida.
+- O criador define entre 5 e 20 rodadas por partida.
+- São necessários pelo menos 2 participantes ativos para iniciar.
+- Somente o criador da sala pode iniciar a partida.
+- Se as categorias selecionadas não tiverem perguntas ativas suficientes, a partida não começa.
 - Cada pergunta aparece uma única vez dentro da partida.
 - Perguntas utilizadas em uma partida podem aparecer em partidas futuras.
+- As perguntas são sorteadas entre as categorias escolhidas e distribuídas de forma equilibrada quando possível.
 - A partida é controlada pelo servidor.
 - A partida não é pausada quando um jogador desconecta.
 
 ## Estados da partida
 
 ```text
-WAITING -> IN_PROGRESS -> FINISHED
+IN_PROGRESS -> FINISHED
+      \--------> CANCELLED
 ```
 
-- `WAITING`: a partida foi configurada, mas ainda não começou.
-- `IN_PROGRESS`: as perguntas estão sendo apresentadas aos jogadores.
+- `IN_PROGRESS`: a partida foi iniciada; suas rodadas começam pendentes e avançam durante o jogo.
 - `FINISHED`: todas as rodadas terminaram e o resultado foi calculado.
+- `CANCELLED`: a partida foi interrompida antes de terminar.
 
 ## Categorias e perguntas
 
