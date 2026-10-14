@@ -1,6 +1,8 @@
 package com.crazynoisyquiz.backend.match.service;
 
 import com.crazynoisyquiz.backend.match.dto.MatchResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchRankingResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchResultResponse;
 import com.crazynoisyquiz.backend.match.dto.MatchRoundResponse;
 import com.crazynoisyquiz.backend.match.dto.QuestionOptionResponse;
 import com.crazynoisyquiz.backend.match.dto.StartMatchRequest;
@@ -333,8 +335,72 @@ public class MatchService {
 
         round.setStatus(RoundStatus.FINISHED);
         round.setEndedAt(endedAt);
+        if (round.getRoundNumber().equals(match.getTotalRounds())) {
+            finishMatch(match, endedAt);
+        }
         // A transação salva a rodada e os totais dos participantes juntos.
         return toRoundResponse(round);
+    }
+
+    // Mostra o resultado final apenas para quem participou da partida.
+    @Transactional(readOnly = true)
+    public MatchResultResponse findResult(UUID matchId, String email) {
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new EntityNotFoundException("Partida não encontrada"));
+
+        if (!matchParticipantRepository.existsByMatchIdAndUserEmailIgnoreCase(matchId, email)) {
+            throw new ForbiddenOperationException("Apenas participantes podem consultar o resultado");
+        }
+        if (match.getStatus() != MatchStatus.FINISHED) {
+            throw new ResourceConflictException("O resultado só está disponível após o término da partida");
+        }
+
+        // As posições já foram salvas no encerramento; consultar não recalcula os pontos.
+        List<MatchRankingResponse> ranking = matchParticipantRepository
+                .findAllByMatchIdOrderByTotalPointsDescCorrectAnswersDesc(matchId)
+                .stream()
+                .map(participant -> new MatchRankingResponse(
+                        participant.getUser().getId(),
+                        participant.getUser().getUsername(),
+                        participant.getUser().getAvatarKey(),
+                        participant.getPosition(),
+                        participant.getTotalPoints(),
+                        participant.getCorrectAnswers()
+                ))
+                .toList();
+
+        return new MatchResultResponse(
+                match.getId(),
+                match.getRoom().getCode(),
+                match.getStatus(),
+                match.getTotalRounds(),
+                match.getFinishedAt(),
+                ranking
+        );
+    }
+
+    // Fecha a partida e mantém os jogadores na sala para a próxima.
+    private void finishMatch(Match match, Instant finishedAt) {
+        List<MatchParticipant> ranking = matchParticipantRepository
+                .findAllByMatchIdOrderByTotalPointsDescCorrectAnswersDesc(match.getId());
+
+        MatchParticipant previous = null;
+        int position = 0;
+        for (int index = 0; index < ranking.size(); index++) {
+            MatchParticipant participant = ranking.get(index);
+            // Empate em pontos e acertos compartilha posição: 1, 1, 3.
+            if (previous == null
+                    || !participant.getTotalPoints().equals(previous.getTotalPoints())
+                    || !participant.getCorrectAnswers().equals(previous.getCorrectAnswers())) {
+                position = index + 1;
+            }
+            participant.setPosition(position);
+            previous = participant;
+        }
+
+        match.setStatus(MatchStatus.FINISHED);
+        match.setFinishedAt(finishedAt);
+        match.getRoom().setStatus(RoomStatus.WAITING);
     }
 
     // Mantém a mesma resposta ao abrir, consultar e encerrar uma rodada.

@@ -6,6 +6,7 @@ import com.crazynoisyquiz.backend.question.model.Question;
 import com.crazynoisyquiz.backend.question.model.QuestionOption;
 import com.crazynoisyquiz.backend.question.repository.QuestionOptionRepository;
 import com.crazynoisyquiz.backend.room.model.QuizRoom;
+import com.crazynoisyquiz.backend.room.model.RoomStatus;
 import com.crazynoisyquiz.backend.shared.exception.ForbiddenOperationException;
 import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.user.model.User;
@@ -42,7 +43,8 @@ class MatchFinishRoundServiceTest {
         User owner = new User();
         owner.setEmail("owner@email.com");
         match = Match.builder().id(UUID.randomUUID()).status(MatchStatus.IN_PROGRESS)
-                .currentRoundNumber(1).room(QuizRoom.builder().owner(owner).build()).build();
+                .currentRoundNumber(1).totalRounds(5)
+                .room(QuizRoom.builder().owner(owner).status(RoomStatus.IN_PROGRESS).build()).build();
         Question question = new Question();
         question.setId(UUID.randomUUID());
         question.setTimeLimitSeconds(3600);
@@ -88,6 +90,9 @@ class MatchFinishRoundServiceTest {
         assertThat(wrong.getParticipant().getTotalPoints()).isEqualTo(20);
         assertThat(wrong.getParticipant().getCorrectAnswers()).isEqualTo(1);
         assertThat(match.getCurrentRoundNumber()).isEqualTo(1);
+        assertThat(match.getStatus()).isEqualTo(MatchStatus.IN_PROGRESS);
+        assertThat(match.getFinishedAt()).isNull();
+        assertThat(match.getRoom().getStatus()).isEqualTo(RoomStatus.IN_PROGRESS);
 
         // Um segundo pedido precisa parar antes de somar o mesmo acerto novamente.
         assertThatThrownBy(() -> service.finishRound(match.getId(), round.getId(), "owner@email.com"))
@@ -122,6 +127,60 @@ class MatchFinishRoundServiceTest {
         assertThat(round.getStatus()).isEqualTo(RoundStatus.IN_PROGRESS);
         assertThat(round.getEndedAt()).isNull();
         verify(answers, never()).findAllByRoundId(round.getId());
+    }
+
+    @Test
+    void shouldFinishMatchWithSharedPositionsAndReturnRoomToWaiting() {
+        existingRound();
+        match.setCurrentRoundNumber(5);
+        round.setRoundNumber(5);
+        round.setStartedAt(Instant.now().minusSeconds(7200));
+        when(participants.countByMatchId(match.getId())).thenReturn(4L);
+        when(answers.countByRoundId(round.getId())).thenReturn(0L);
+        when(answers.findAllByRoundId(round.getId())).thenReturn(List.of());
+        MatchParticipant first = MatchParticipant.builder().totalPoints(200).correctAnswers(3).build();
+        MatchParticipant tied = MatchParticipant.builder().totalPoints(200).correctAnswers(3).build();
+        MatchParticipant fewerCorrect = MatchParticipant.builder().totalPoints(200).correctAnswers(2).build();
+        MatchParticipant last = MatchParticipant.builder().totalPoints(100).correctAnswers(3).build();
+        when(participants.findAllByMatchIdOrderByTotalPointsDescCorrectAnswersDesc(match.getId()))
+                .thenReturn(List.of(first, tied, fewerCorrect, last));
+        responseOptions();
+
+        // A última rodada fecha a partida e salva as posições sem remover ninguém da sala.
+        service.finishRound(match.getId(), round.getId(), "owner@email.com");
+        assertThat(List.of(first, tied, fewerCorrect, last))
+                .extracting(MatchParticipant::getPosition).containsExactly(1, 1, 3, 4);
+        assertThat(match.getStatus()).isEqualTo(MatchStatus.FINISHED);
+        assertThat(match.getFinishedAt()).isEqualTo(round.getEndedAt()).isNotNull();
+        assertThat(match.getRoom().getStatus()).isEqualTo(RoomStatus.WAITING);
+
+        assertThatThrownBy(() -> service.finishRound(match.getId(), round.getId(), "owner@email.com"))
+                .isInstanceOf(ResourceConflictException.class);
+        verify(participants, times(1))
+                .findAllByMatchIdOrderByTotalPointsDescCorrectAnswersDesc(match.getId());
+    }
+
+    @Test
+    void shouldIncludeLastRoundPointsInFinalRanking() {
+        existingRound();
+        match.setCurrentRoundNumber(5);
+        round.setRoundNumber(5);
+        when(participants.countByMatchId(match.getId())).thenReturn(2L);
+        when(answers.countByRoundId(round.getId())).thenReturn(2L);
+        MatchAnswer correct = answer(true, 0);
+        MatchAnswer wrong = answer(false, 0);
+        wrong.getParticipant().setTotalPoints(100);
+        when(answers.findAllByRoundId(round.getId())).thenReturn(List.of(correct, wrong));
+        // A consulta do ranking precisa acontecer depois de somar os pontos finais.
+        when(participants.findAllByMatchIdOrderByTotalPointsDescCorrectAnswersDesc(match.getId()))
+                .thenAnswer(invocation -> {
+                    assertThat(correct.getParticipant().getTotalPoints()).isEqualTo(120);
+                    return List.of(correct.getParticipant(), wrong.getParticipant());
+                });
+        responseOptions();
+        service.finishRound(match.getId(), round.getId(), "owner@email.com");
+        assertThat(correct.getParticipant().getPosition()).isEqualTo(1);
+        assertThat(wrong.getParticipant().getPosition()).isEqualTo(2);
     }
 
     @Test
