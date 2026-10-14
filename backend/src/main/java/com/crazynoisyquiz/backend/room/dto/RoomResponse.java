@@ -18,6 +18,7 @@ public class RoomResponse {
     private RoomStatus status;
     private Integer maxPlayers;
     private Instant createdAt;
+    private Instant closedAt;
 
     private List<RoomParticipantResponse> participants;
 

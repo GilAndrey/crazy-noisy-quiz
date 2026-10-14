@@ -17,6 +17,15 @@ public class RoomController {
 
     private final RoomService roomService;
 
+    // Só o criador pode fechar a sala e cancelar a partida que estiver ativa.
+    @PostMapping("/{code}/close")
+    public ResponseEntity<RoomResponse> closeRoom(
+            @PathVariable String code,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(roomService.closeRoom(code, authentication.getName()));
+    }
+
     // Cria uma sala com o usuario autenticado como o dono da sala!!!
     @PostMapping
     public ResponseEntity<RoomResponse> createRoom(

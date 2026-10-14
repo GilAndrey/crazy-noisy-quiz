@@ -1,6 +1,11 @@
 package com.crazynoisyquiz.backend.room.service;
 
 import com.crazynoisyquiz.backend.room.dto.CreateRoomRequest;
+import com.crazynoisyquiz.backend.match.model.Match;
+import com.crazynoisyquiz.backend.match.model.MatchStatus;
+import com.crazynoisyquiz.backend.match.repository.MatchRepository;
+import com.crazynoisyquiz.backend.shared.exception.ForbiddenOperationException;
+import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import com.crazynoisyquiz.backend.room.dto.RoomParticipantResponse;
 import com.crazynoisyquiz.backend.room.dto.RoomResponse;
 import com.crazynoisyquiz.backend.room.model.QuizRoom;
@@ -30,6 +35,39 @@ public class RoomService {
     private final QuizRoomRepository quizRoomRepository;
     private final RoomParticipantRepository roomParticipantRepository;
     private final UserRepository userRepository;
+    private final MatchRepository matchRepository;
+
+    // Fecha a sala sem apagar partidas, respostas ou pontos já registrados.
+    @Transactional
+    public RoomResponse closeRoom(String roomCode, String email) {
+        // Partida antes da sala: evita disputar os bloqueios em ordem inversa ao finishRound.
+        List<Match> activeMatches = matchRepository.findByRoomCodeAndStatusForUpdate(
+                roomCode, MatchStatus.IN_PROGRESS
+        );
+        QuizRoom room = quizRoomRepository.findByCodeForUpdate(roomCode)
+                .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
+        if (!room.getOwner().getEmail().equalsIgnoreCase(email)) {
+            throw new ForbiddenOperationException("Apenas o criador pode encerrar a sala");
+        }
+        if (room.getStatus() == RoomStatus.CLOSED) {
+            throw new ResourceConflictException("A sala já está fechada");
+        }
+
+        // Se uma partida começou entre as duas consultas, repetimos o pedido com segurança.
+        if (activeMatches.isEmpty()
+                && matchRepository.existsByRoomIdAndStatus(room.getId(), MatchStatus.IN_PROGRESS)) {
+            throw new ResourceConflictException("Uma partida acabou de iniciar; tente encerrar a sala novamente");
+        }
+
+        Instant closedAt = Instant.now();
+        for (Match match : activeMatches) {
+            match.setStatus(MatchStatus.CANCELLED);
+            match.setFinishedAt(closedAt);
+        }
+        room.setStatus(RoomStatus.CLOSED);
+        room.setClosedAt(closedAt);
+        return toResponse(room);
+    }
 
     @Transactional
     // O dono da sala vem do usuário autenticado, nunca do corpo da requisição.
@@ -110,6 +148,7 @@ public class RoomService {
                 .status(room.getStatus())
                 .maxPlayers(room.getMaxPlayers())
                 .createdAt(room.getCreatedAt())
+                .closedAt(room.getClosedAt())
                 .participants(participants)
                 .build();
     }

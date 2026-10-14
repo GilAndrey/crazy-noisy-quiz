@@ -1,6 +1,8 @@
 package com.crazynoisyquiz.backend.match.service;
 
 import com.crazynoisyquiz.backend.match.dto.MatchResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchHistoryResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchHistoryPageResponse;
 import com.crazynoisyquiz.backend.match.dto.MatchRankingResponse;
 import com.crazynoisyquiz.backend.match.dto.MatchResultResponse;
 import com.crazynoisyquiz.backend.match.dto.MatchRoundResponse;
@@ -32,6 +34,9 @@ import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -63,6 +68,34 @@ public class MatchService {
     private final QuestionOptionRepository questionOptionRepository;
     private final MatchAnswerRepository matchAnswerRepository;
     private final AnswerScoreCalculator answerScoreCalculator;
+
+    // Lista as partidas da sala, das mais recentes para as mais antigas.
+    @Transactional(readOnly = true)
+    public MatchHistoryPageResponse findHistory(String roomCode, String email, int page, int size) {
+        if (page < 0 || size < 1 || size > 50) {
+            throw new InvalidRequestException("A página deve ser >= 0 e o tamanho deve estar entre 1 e 50");
+        }
+        QuizRoom room = quizRoomRepository.findByCode(roomCode)
+                .orElseThrow(() -> new EntityNotFoundException("Sala não encontrada"));
+        if (!room.getOwner().getEmail().equalsIgnoreCase(email)
+                && !roomParticipantRepository.existsByRoomIdAndUserEmailIgnoreCaseAndLeftAtIsNull(
+                        room.getId(), email)) {
+            throw new ForbiddenOperationException("Apenas o criador e participantes ativos podem consultar o histórico");
+        }
+
+        // O ID desempata partidas criadas no mesmo instante para manter a paginação estável.
+        Page<Match> history = matchRepository.findAllByRoomId(room.getId(), PageRequest.of(
+                page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")
+        ));
+        List<MatchHistoryResponse> content = history.getContent().stream()
+                .map(match -> new MatchHistoryResponse(
+                        match.getId(), match.getStatus(), match.getTotalRounds(),
+                        match.getCurrentRoundNumber(), match.getCreatedAt(),
+                        match.getStartedAt(), match.getFinishedAt()
+                )).toList();
+        return new MatchHistoryPageResponse(content, history.getNumber(), history.getSize(),
+                history.getTotalElements(), history.getTotalPages());
+    }
 
     @Transactional
     public MatchResponse startMatch(

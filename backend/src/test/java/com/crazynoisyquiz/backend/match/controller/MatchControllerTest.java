@@ -2,6 +2,8 @@ package com.crazynoisyquiz.backend.match.controller;
 
 import com.crazynoisyquiz.backend.auth.service.JwtService;
 import com.crazynoisyquiz.backend.match.dto.MatchResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchHistoryPageResponse;
+import com.crazynoisyquiz.backend.match.dto.MatchHistoryResponse;
 import com.crazynoisyquiz.backend.match.model.MatchStatus;
 import com.crazynoisyquiz.backend.match.service.MatchService;
 import com.crazynoisyquiz.backend.shared.exception.ForbiddenOperationException;
@@ -26,6 +28,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,6 +36,54 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class MatchControllerTest {
+
+    @Test
+    void shouldReturnHistoryWithDefaultPagination() throws Exception {
+        UUID matchId = UUID.randomUUID();
+        when(matchService.findHistory("ABC123", "owner@email.com", 0, 10))
+                .thenReturn(new MatchHistoryPageResponse(List.of(new MatchHistoryResponse(
+                        matchId, MatchStatus.IN_PROGRESS, 5, 0, null, null, null
+                )), 0, 10, 1, 1));
+        // O GET usa a mesma sala da URL e o usuário autenticado.
+        mockMvc.perform(get("/api/rooms/ABC123/matches")
+                        .principal(new UsernamePasswordAuthenticationToken("owner@email.com", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].matchId").value(matchId.toString()))
+                .andExpect(jsonPath("$.content[0].status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        verify(matchService).findHistory("ABC123", "owner@email.com", 0, 10);
+    }
+
+    @Test
+    void shouldAcceptCustomHistoryPage() throws Exception {
+        when(matchService.findHistory("ABC123", "owner@email.com", 2, 5))
+                .thenReturn(new MatchHistoryPageResponse(List.of(), 2, 5, 0, 0));
+        mockMvc.perform(get("/api/rooms/ABC123/matches").param("page", "2").param("size", "5")
+                        .principal(new UsernamePasswordAuthenticationToken("owner@email.com", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(2));
+        verify(matchService).findHistory("ABC123", "owner@email.com", 2, 5);
+    }
+
+    @Test
+    void shouldRejectInvalidHistoryPagination() throws Exception {
+        when(matchService.findHistory("ABC123", "owner@email.com", -1, 10))
+                .thenThrow(new InvalidRequestException("Página inválida"));
+        mockMvc.perform(get("/api/rooms/ABC123/matches").param("page", "-1")
+                        .principal(new UsernamePasswordAuthenticationToken("owner@email.com", null)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectHistoryAccessForOutsider() throws Exception {
+        when(matchService.findHistory("ABC123", "outsider@email.com", 0, 10))
+                .thenThrow(new ForbiddenOperationException("Acesso negado ao histórico"));
+        mockMvc.perform(get("/api/rooms/ABC123/matches")
+                        .principal(new UsernamePasswordAuthenticationToken("outsider@email.com", null)))
+                .andExpect(status().isForbidden());
+    }
 
     @Autowired
     private MockMvc mockMvc;

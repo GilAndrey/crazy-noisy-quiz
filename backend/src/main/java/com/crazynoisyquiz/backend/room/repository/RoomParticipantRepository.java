@@ -10,6 +10,8 @@ import java.util.UUID;
 // Centraliza as consultas dos jogadores que participam das salas.
 public interface RoomParticipantRepository extends JpaRepository<RoomParticipant, UUID> {
 
+    boolean existsByRoomIdAndUserEmailIgnoreCaseAndLeftAtIsNull(UUID roomId, String email);
+
     // Evita duplicidade entre os participantes que ainda estão na sala.
     boolean existsByRoomIdAndUserIdAndLeftAtIsNull(UUID roomId, UUID userId);
 

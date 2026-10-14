@@ -6,6 +6,8 @@ import com.crazynoisyquiz.backend.room.dto.RoomResponse;
 import com.crazynoisyquiz.backend.room.model.RoomStatus;
 import com.crazynoisyquiz.backend.room.service.RoomService;
 import com.crazynoisyquiz.backend.shared.exception.GlobalExceptionHandler;
+import com.crazynoisyquiz.backend.shared.exception.ForbiddenOperationException;
+import com.crazynoisyquiz.backend.shared.exception.ResourceConflictException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +34,44 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 @Import(GlobalExceptionHandler.class)
 class RoomControllerTest {
+
+    @Test
+    void shouldCloseRoomAndReturn200() throws Exception {
+        Instant closedAt = Instant.parse("2026-10-14T16:00:00Z");
+        when(roomService.closeRoom("ABC123", "owner@email.com"))
+                .thenReturn(RoomResponse.builder().code("ABC123").status(RoomStatus.CLOSED)
+                        .closedAt(closedAt).build());
+        // O pedido não tem body: o criador vem do usuário autenticado.
+        mockMvc.perform(post("/api/rooms/ABC123/close")
+                        .principal(new UsernamePasswordAuthenticationToken("owner@email.com", null)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.closedAt").value(closedAt.toString()));
+        org.mockito.Mockito.verify(roomService).closeRoom("ABC123", "owner@email.com");
+    }
+
+    private void closeFailure(RuntimeException error, int expectedStatus) throws Exception {
+        when(roomService.closeRoom("ABC123", "player@email.com")).thenThrow(error);
+        mockMvc.perform(post("/api/rooms/ABC123/close")
+                        .principal(new UsernamePasswordAuthenticationToken("player@email.com", null)))
+                .andExpect(status().is(expectedStatus))
+                .andExpect(jsonPath("$.message").value(error.getMessage()));
+    }
+
+    @Test
+    void shouldReturn403ForNonOwnerClosingRoom() throws Exception {
+        closeFailure(new ForbiddenOperationException("Apenas o criador pode encerrar a sala"), 403);
+    }
+
+    @Test
+    void shouldReturn409ForAlreadyClosedRoom() throws Exception {
+        closeFailure(new ResourceConflictException("A sala já está fechada"), 409);
+    }
+
+    @Test
+    void shouldReturn404ForMissingRoomWhenClosing() throws Exception {
+        closeFailure(new EntityNotFoundException("Sala não encontrada"), 404);
+    }
 
     @Autowired
     private MockMvc mockMvc;
